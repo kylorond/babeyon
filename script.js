@@ -842,11 +842,11 @@ function downloadCSV() {
     const selisih = inc - exp;
     const totalSaldo = Object.values(calculateBalances()).reduce((a, b) => a + b, 0);
     let csv = 'LAPORAN KEUANGAN BULANAN\n';
-    csv += `Periode:,${formatMonthIndo(filter)}\n`;
-    csv += `Total Pemasukan:,${inc}\n`;
-    csv += `Total Pengeluaran:,${exp}\n`;
-    csv += `Selisih:,${selisih}\n`;
-    csv += `Total Saldo Keseluruhan:,${totalSaldo}\n\n`;
+    csv += `Periode :,${formatMonthIndo(filter)}\n`;
+    csv += `Total Pemasukan :,${inc}\n`;
+    csv += `Total Pengeluaran :,${exp}\n`;
+    csv += `Selisih :,${selisih}\n`;
+    csv += `Total Saldo :,${totalSaldo}\n\n`;
     csv += 'Tanggal,Tipe,Kategori,Akun,Deskripsi,Nominal (IDR)\n';
     filtered.forEach(t => {
         const tipe = t.type === 'income' ? 'Pemasukan' : t.type === 'expense' ? 'Pengeluaran' : 'Transfer';
