@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
-    <title>Manajemen Keuangan by Bayon 🤍</title>
+    <title>Manajemen Keuangan by Bayon</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -128,8 +128,7 @@
                     <input type="month" id="date-filter" onchange="updateDateLabel(); refreshAll()" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
                 </div>
                 <button onclick="openModal()" class="h-10 w-10 sm:h-10 sm:w-auto px-0 sm:px-4 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 text-white rounded-full flex items-center justify-center sm:justify-start gap-1 sm:gap-2 font-bold text-xs sm:text-sm shadow-xl shadow-brand-600/30 transition-all active:scale-95">
-                    <i class="fa-solid fa-plus-circle"></i>
-                    <span class="hidden sm:inline">Transaksi</span>
+                    <i class="fa-solid fa-plus-circle"></i> <span class="hidden sm:inline">Transaksi</span>
                 </button>
             </div>
         </header>
@@ -158,10 +157,10 @@
                     </div>
                     <div class="glass p-5 md:p-6 rounded-3xl border border-brand-200/40 dark:border-dark-border flex items-center gap-4 backdrop-blur-xl hover:shadow-lg transition-shadow">
                         <div class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-brand-100/70 dark:bg-brand-500/20 flex items-center justify-center text-brand-500 dark:text-brand-400 text-xl md:text-2xl">
-                            <i class="fa-solid fa-piggy-bank"></i>
+                            <i class="fa-solid fa-scale-balanced"></i>
                         </div>
                         <div class="min-w-0 flex-1">
-                            <p class="text-[10px] md:text-xs font-bold text-brand-300 uppercase tracking-widest mb-1">Tabungan</p>
+                            <p class="text-[10px] md:text-xs font-bold text-brand-300 uppercase tracking-widest mb-1">Selisih</p>
                             <h4 class="text-sm sm:text-base md:text-lg lg:text-xl font-black text-[#5a4e4e] dark:text-white break-words" id="stat-savings">Rp 0</h4>
                         </div>
                     </div>
