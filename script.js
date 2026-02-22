@@ -93,12 +93,60 @@ function closeSidebar() {
 }
 
 function migrateData() {
-    if (accounts.length === 0) {
-        const accountSet = new Set();
-        transactions.forEach(t => accountSet.add(t.account || 'Cash'));
-        accountSet.forEach(name => accounts.push({ id: Date.now() + Math.random(), name, initialBalance: 0, currency: 'IDR' }));
+    let changed = false;
+    const accountMap = new Map(accounts.map(a => [a.name, a.id]));
+    transactions.forEach(t => {
+        if (typeof t.account === 'string' && isNaN(Number(t.account))) {
+            if (accountMap.has(t.account)) {
+                t.account = accountMap.get(t.account);
+                changed = true;
+            } else {
+                const newId = Date.now() + Math.random();
+                accounts.push({ id: newId, name: t.account, initialBalance: 0, currency: 'IDR' });
+                accountMap.set(t.account, newId);
+                t.account = newId;
+                changed = true;
+            }
+        }
+        if (t.toAccount && typeof t.toAccount === 'string' && isNaN(Number(t.toAccount))) {
+            if (accountMap.has(t.toAccount)) {
+                t.toAccount = accountMap.get(t.toAccount);
+                changed = true;
+            } else {
+                const newId = Date.now() + Math.random();
+                accounts.push({ id: newId, name: t.toAccount, initialBalance: 0, currency: 'IDR' });
+                accountMap.set(t.toAccount, newId);
+                t.toAccount = newId;
+                changed = true;
+            }
+        }
+        if (t.transferId) {
+            if (t.category !== 'Transfer') {
+                t.category = 'Transfer';
+                changed = true;
+            }
+            if (t.toAccount !== undefined) {
+                delete t.toAccount;
+                changed = true;
+            }
+        }
+    });
+    recurringRules.forEach(rule => {
+        if (rule.type === 'transfer' && rule.category !== 'Transfer') {
+            rule.category = 'Transfer';
+            changed = true;
+        }
+    });
+    if (changed) {
+        localStorage.setItem('finvault_tx', JSON.stringify(transactions));
         localStorage.setItem('finvault_accounts', JSON.stringify(accounts));
+        localStorage.setItem('finvault_recurring', JSON.stringify(recurringRules));
     }
+}
+
+function getAccountName(accountId) {
+    const acc = accounts.find(a => a.id == accountId);
+    return acc ? acc.name : (typeof accountId === 'string' ? accountId : 'Unknown');
 }
 
 function getAccountBalance(accountId) {
@@ -560,7 +608,7 @@ function updateDateLabel() {
 function refreshAll() {
     processRecurring();
     const filter = document.getElementById('date-filter').value;
-    const filtered = transactions.filter(t => t.date.startsWith(filter) && t.type !== 'transfer');
+    const filtered = transactions.filter(t => t.date.startsWith(filter) && !t.transferId);
     const inc = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
     const exp = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
     document.getElementById('stat-income').innerText = formatIDR(inc);
@@ -660,14 +708,24 @@ function renderFullTransactions() {
     const typeFilter = document.getElementById('tx-type-filter').value;
     const accountFilter = document.getElementById('tx-account-filter').value;
     const filtered = transactions.filter(t => {
-        if (typeFilter !== 'all' && t.type !== typeFilter) return false;
-        if (accountFilter !== 'all' && t.account != accountFilter && t.toAccount != accountFilter) return false;
-        const matchGlobal = (t.desc || '').toLowerCase().includes(globalSearch) || (t.category || '').toLowerCase().includes(globalSearch) || (accounts.find(a=>a.id==t.account)?.name || '').toLowerCase().includes(globalSearch);
+        if (typeFilter !== 'all') {
+            if (typeFilter === 'transfer') {
+                if (t.transferId === undefined) return false;
+            } else {
+                if (t.type !== typeFilter) return false;
+            }
+        }
+        if (accountFilter !== 'all') {
+            const accMatch = (t.account == accountFilter) || (t.toAccount && t.toAccount == accountFilter);
+            if (!accMatch) return false;
+        }
+        const matchGlobal = (t.desc || '').toLowerCase().includes(globalSearch) || (t.category || '').toLowerCase().includes(globalSearch) || (getAccountName(t.account) || '').toLowerCase().includes(globalSearch) || (t.toAccount && (getAccountName(t.toAccount) || '').toLowerCase().includes(globalSearch));
         return matchGlobal;
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
     
     document.getElementById('full-tx-body').innerHTML = filtered.map(t => {
-        const accName = accounts.find(a => a.id == t.account)?.name || t.account;
+        const accName = getAccountName(t.account);
+        const toAccName = t.toAccount ? getAccountName(t.toAccount) : null;
         const typeClass = t.type === 'income' ? 'text-emerald-500' : t.type === 'expense' ? 'text-[#5a4e4e] dark:text-white' : 'text-brand-600';
         const sign = t.type === 'income' ? '+' : t.type === 'expense' ? '-' : '↔';
         const rule = t.ruleId ? recurringRules.find(r => r.id == t.ruleId) : null;
@@ -675,7 +733,7 @@ function renderFullTransactions() {
         <tr class="hover:bg-brand-100/50 dark:hover:bg-dark-border/30 transition">
             <td class="px-4 md:px-6 py-3 md:py-4"><div class="flex items-center gap-2 md:gap-3"><div class="w-7 h-7 md:w-9 md:h-9 rounded-xl md:rounded-2xl bg-white/60 dark:bg-dark-surface flex items-center justify-center"><i class="fa-solid ${CATEGORY_ICONS[t.category] || 'fa-tag'} text-brand-500 text-xs md:text-base"></i></div><div><p class="font-bold text-xs md:text-sm text-[#5a4e4e] dark:text-brand-300">${t.desc || t.category || 'Transfer'}</p><p class="text-[8px] md:text-[9px] text-brand-400 uppercase">${t.date}</p></div></div></td>
             <td class="px-4 md:px-6 py-3 md:py-4"><span class="px-1.5 md:px-2 py-0.5 md:py-1 rounded-xl text-[8px] md:text-[9px] font-black uppercase bg-brand-200/50 dark:bg-dark-surface text-brand-600 dark:text-brand-300">${t.category || 'Transfer'}</span></td>
-            <td class="px-4 md:px-6 py-3 md:py-4"><span class="text-[10px] md:text-xs font-semibold"><i class="fa-regular fa-building mr-1 text-brand-400"></i>${accName}${t.toAccount ? ' → ' + (accounts.find(a=>a.id==t.toAccount)?.name || t.toAccount) : ''}</span></td>
+            <td class="px-4 md:px-6 py-3 md:py-4"><span class="text-[10px] md:text-xs font-semibold"><i class="fa-regular fa-building mr-1 text-brand-400"></i>${accName}${toAccName ? ' → ' + toAccName : ''}</span></td>
             <td class="px-4 md:px-6 py-3 md:py-4 text-right font-black text-xs md:text-sm whitespace-nowrap ${typeClass}">${sign} ${formatIDR(t.amount)}</td>
             <td class="px-4 md:px-6 py-3 md:py-4 text-center">
                 <button onclick="editTx(${t.id})" class="w-6 h-6 inline-flex items-center justify-center text-brand-400 hover:text-brand-500"><i class="fa-regular fa-pen-to-square text-xs"></i></button>
@@ -968,11 +1026,16 @@ function deleteGoal(id) {
     }
 }
 
+function getDisplayType(t) {
+    if (t.transferId) return 'Transfer';
+    return t.type === 'income' ? 'Pemasukan' : 'Pengeluaran';
+}
+
 function downloadCSV() {
     const filter = document.getElementById('date-filter').value;
     const filtered = transactions.filter(t => t.date.startsWith(filter));
-    const inc = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const exp = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const inc = filtered.filter(t => t.type === 'income' && !t.transferId).reduce((s, t) => s + t.amount, 0);
+    const exp = filtered.filter(t => t.type === 'expense' && !t.transferId).reduce((s, t) => s + t.amount, 0);
     const selisih = inc - exp;
     const totalSaldo = Object.values(calculateBalances()).reduce((a, b) => a + b, 0);
     let csv = 'LAPORAN KEUANGAN BULANAN\n';
@@ -980,13 +1043,13 @@ function downloadCSV() {
     csv += `Total Pemasukan:,${inc}\n`;
     csv += `Total Pengeluaran:,${exp}\n`;
     csv += `Selisih:,${selisih}\n`;
-    csv += `Total Saldo Keseluruhan:,${totalSaldo}\n\n`;
+    csv += `Total Saldo:,${totalSaldo}\n\n`;
     csv += 'Tanggal,Tipe,Kategori,Akun,Deskripsi,Nominal (IDR)\n';
-    filtered.forEach(t => {
-        const tipe = t.type === 'income' ? 'Pemasukan' : t.type === 'expense' ? 'Pengeluaran' : 'Transfer';
-        const nominal = t.type === 'income' ? t.amount : -t.amount;
-        const akun = accounts.find(a => a.id == t.account)?.name || t.account;
-        const akunTujuan = t.toAccount ? ' → ' + (accounts.find(a => a.id == t.toAccount)?.name || t.toAccount) : '';
+    filtered.sort((a,b) => a.date.localeCompare(b.date)).forEach(t => {
+        const tipe = getDisplayType(t);
+        const nominal = (t.type === 'income' && !t.transferId) ? t.amount : -t.amount;
+        const akun = getAccountName(t.account);
+        const akunTujuan = t.toAccount ? ' → ' + getAccountName(t.toAccount) : '';
         csv += `${formatDateIndo(t.date)},${tipe},${t.category || 'Transfer'},${akun}${akunTujuan},"${t.desc || ''}",${nominal}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1000,8 +1063,8 @@ function downloadCSV() {
 function downloadPDF() {
     const filter = document.getElementById('date-filter').value;
     const filtered = transactions.filter(t => t.date.startsWith(filter)).sort((a, b) => a.date.localeCompare(b.date));
-    const inc = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-    const exp = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const inc = filtered.filter(t => t.type === 'income' && !t.transferId).reduce((s, t) => s + t.amount, 0);
+    const exp = filtered.filter(t => t.type === 'expense' && !t.transferId).reduce((s, t) => s + t.amount, 0);
     const selisih = inc - exp;
     const totalSaldo = Object.values(calculateBalances()).reduce((a, b) => a + b, 0);
     
@@ -1024,7 +1087,7 @@ function downloadPDF() {
     doc.text('Selisih:', 20, y);
     doc.text(formatIDR(selisih), 70, y);
     y += 7;
-    doc.text('Total Saldo Keseluruhan:', 20, y);
+    doc.text('Total Saldo:', 20, y);
     doc.text(formatIDR(totalSaldo), 70, y);
     y += 10;
 
@@ -1035,9 +1098,9 @@ function downloadPDF() {
         prevDate = t.date;
         body.push([
             dateStr,
-            t.type === 'income' ? 'Pemasukan' : t.type === 'expense' ? 'Pengeluaran' : 'Transfer',
+            getDisplayType(t),
             t.category || 'Transfer',
-            (accounts.find(a => a.id == t.account)?.name || t.account) + (t.toAccount ? ' → ' + (accounts.find(a=>a.id==t.toAccount)?.name || t.toAccount) : ''),
+            getAccountName(t.account) + (t.toAccount ? ' → ' + getAccountName(t.toAccount) : ''),
             t.desc || '-',
             formatIDR(t.amount)
         ]);
