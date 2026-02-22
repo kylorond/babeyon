@@ -1,4 +1,5 @@
 let transactions = JSON.parse(localStorage.getItem('finvault_tx')) || [];
+let recurringRules = JSON.parse(localStorage.getItem('finvault_recurring')) || [];
 let accounts = JSON.parse(localStorage.getItem('finvault_accounts')) || [];
 let categories = JSON.parse(localStorage.getItem('finvault_categories')) || {};
 let budgets = JSON.parse(localStorage.getItem('finvault_budgets')) || {};
@@ -361,6 +362,53 @@ function closeModal() {
     document.getElementById('tx-modal').classList.remove('flex');
 }
 
+function processRecurring() {
+    const today = new Date().toISOString().split('T')[0];
+    let changed = false;
+    recurringRules = recurringRules.filter(rule => {
+        if (!rule.active) return true;
+        if (rule.nextDate <= today) {
+            const newTx = {
+                id: Date.now(),
+                type: rule.type,
+                amount: rule.amount,
+                date: today,
+                account: rule.account,
+                category: rule.category,
+                desc: rule.desc,
+                recurring: true,
+                recurringType: rule.interval,
+                ruleId: rule.id
+            };
+            if (rule.type === 'transfer') {
+                newTx.toAccount = rule.toAccount;
+            }
+            transactions.unshift(newTx);
+            const next = new Date(rule.nextDate);
+            if (rule.interval === 'daily') next.setDate(next.getDate() + 1);
+            else if (rule.interval === 'weekly') next.setDate(next.getDate() + 7);
+            else if (rule.interval === 'monthly') next.setMonth(next.getMonth() + 1);
+            rule.nextDate = next.toISOString().split('T')[0];
+            changed = true;
+        }
+        return true;
+    });
+    if (changed) {
+        localStorage.setItem('finvault_tx', JSON.stringify(transactions));
+        localStorage.setItem('finvault_recurring', JSON.stringify(recurringRules));
+    }
+}
+
+function stopRecurring(ruleId) {
+    const rule = recurringRules.find(r => r.id == ruleId);
+    if (rule) {
+        rule.active = false;
+        localStorage.setItem('finvault_recurring', JSON.stringify(recurringRules));
+        showToast('Perulangan transaksi dihentikan');
+        renderFullTransactions();
+    }
+}
+
 function handleSubmit(e) {
     e.preventDefault();
     const id = document.getElementById('tx-id').value;
@@ -398,29 +446,50 @@ function handleSubmit(e) {
         const txOut = { ...txData, id: transferId, type: 'expense', account, toAccount: undefined, desc: `Transfer ke ${toAccountName}` };
         const txIn = { ...txData, id: transferId + 1, type: 'income', account: toAccount, desc: `Transfer dari ${fromAccountName}`, transferId };
         transactions.unshift(txOut, txIn);
+        if (recurring) {
+            const ruleId = Date.now() + 2;
+            recurringRules.push({
+                id: ruleId,
+                type: 'transfer',
+                amount,
+                account,
+                toAccount,
+                category: 'Transfer',
+                desc: desc || `Transfer ke ${toAccountName}`,
+                interval: recurringType,
+                nextDate: new Date(new Date(date).setDate(new Date(date).getDate() + 1)).toISOString().split('T')[0],
+                active: true
+            });
+        }
     } else {
         const newTx = { ...txData, id: Date.now() };
         transactions.unshift(newTx);
-        if (recurring) generateRecurringTransactions(newTx);
+        if (recurring) {
+            const nextDate = new Date(date);
+            if (recurringType === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+            else if (recurringType === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+            else if (recurringType === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+            recurringRules.push({
+                id: Date.now() + 1,
+                type,
+                amount,
+                account,
+                category,
+                desc,
+                interval: recurringType,
+                nextDate: nextDate.toISOString().split('T')[0],
+                active: true,
+                toAccount: type === 'transfer' ? toAccount : undefined
+            });
+        }
     }
 
     localStorage.setItem('finvault_tx', JSON.stringify(transactions));
+    localStorage.setItem('finvault_recurring', JSON.stringify(recurringRules));
     refreshAll();
     if (!document.getElementById('view-transactions').classList.contains('hidden')) renderFullTransactions();
     closeModal();
     showToast('Transaksi disimpan');
-}
-
-function generateRecurringTransactions(tx) {
-    const interval = { daily: 1, weekly: 7, monthly: 30 }[tx.recurringType];
-    if (!interval) return;
-    const startDate = new Date(tx.date);
-    for (let i = 1; i <= 12; i++) {
-        const nextDate = new Date(startDate);
-        nextDate.setDate(startDate.getDate() + interval * i);
-        if (nextDate > new Date(new Date().setMonth(new Date().getMonth() + 6))) break;
-        transactions.push({ ...tx, id: Date.now() + i, date: nextDate.toISOString().split('T')[0] });
-    }
 }
 
 function deleteTx(id) {
@@ -489,6 +558,7 @@ function updateDateLabel() {
 }
 
 function refreshAll() {
+    processRecurring();
     const filter = document.getElementById('date-filter').value;
     const filtered = transactions.filter(t => t.date.startsWith(filter) && t.type !== 'transfer');
     const inc = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
@@ -585,6 +655,7 @@ function updateCharts(data) {
 }
 
 function renderFullTransactions() {
+    processRecurring();
     const globalSearch = document.getElementById('tx-search').value.toLowerCase();
     const typeFilter = document.getElementById('tx-type-filter').value;
     const accountFilter = document.getElementById('tx-account-filter').value;
@@ -599,6 +670,7 @@ function renderFullTransactions() {
         const accName = accounts.find(a => a.id == t.account)?.name || t.account;
         const typeClass = t.type === 'income' ? 'text-emerald-500' : t.type === 'expense' ? 'text-[#5a4e4e] dark:text-white' : 'text-brand-600';
         const sign = t.type === 'income' ? '+' : t.type === 'expense' ? '-' : '↔';
+        const rule = t.ruleId ? recurringRules.find(r => r.id == t.ruleId) : null;
         return `
         <tr class="hover:bg-brand-100/50 dark:hover:bg-dark-border/30 transition">
             <td class="px-4 md:px-6 py-3 md:py-4"><div class="flex items-center gap-2 md:gap-3"><div class="w-7 h-7 md:w-9 md:h-9 rounded-xl md:rounded-2xl bg-white/60 dark:bg-dark-surface flex items-center justify-center"><i class="fa-solid ${CATEGORY_ICONS[t.category] || 'fa-tag'} text-brand-500 text-xs md:text-base"></i></div><div><p class="font-bold text-xs md:text-sm text-[#5a4e4e] dark:text-brand-300">${t.desc || t.category || 'Transfer'}</p><p class="text-[8px] md:text-[9px] text-brand-400 uppercase">${t.date}</p></div></div></td>
@@ -608,6 +680,7 @@ function renderFullTransactions() {
             <td class="px-4 md:px-6 py-3 md:py-4 text-center">
                 <button onclick="editTx(${t.id})" class="w-6 h-6 inline-flex items-center justify-center text-brand-400 hover:text-brand-500"><i class="fa-regular fa-pen-to-square text-xs"></i></button>
                 <button onclick="deleteTx(${t.id})" class="w-6 h-6 inline-flex items-center justify-center text-brand-400 hover:text-rose-500"><i class="fa-solid fa-trash-can text-xs"></i></button>
+                ${t.ruleId && rule && rule.active ? `<button onclick="stopRecurring(${t.ruleId})" class="w-6 h-6 inline-flex items-center justify-center text-brand-400 hover:text-amber-500"><i class="fa-solid fa-ban text-xs"></i></button>` : ''}
             </td>
         </tr>`;
     }).join('');
@@ -903,11 +976,11 @@ function downloadCSV() {
     const selisih = inc - exp;
     const totalSaldo = Object.values(calculateBalances()).reduce((a, b) => a + b, 0);
     let csv = 'LAPORAN KEUANGAN BULANAN\n';
-    csv += `Periode :,${formatMonthIndo(filter)}\n`;
-    csv += `Total Pemasukan :,${inc}\n`;
-    csv += `Total Pengeluaran :,${exp}\n`;
-    csv += `Selisih :,${selisih}\n`;
-    csv += `Total Saldo :,${totalSaldo}\n\n`;
+    csv += `Periode:,${formatMonthIndo(filter)}\n`;
+    csv += `Total Pemasukan:,${inc}\n`;
+    csv += `Total Pengeluaran:,${exp}\n`;
+    csv += `Selisih:,${selisih}\n`;
+    csv += `Total Saldo Keseluruhan:,${totalSaldo}\n\n`;
     csv += 'Tanggal,Tipe,Kategori,Akun,Deskripsi,Nominal (IDR)\n';
     filtered.forEach(t => {
         const tipe = t.type === 'income' ? 'Pemasukan' : t.type === 'expense' ? 'Pengeluaran' : 'Transfer';
@@ -939,19 +1012,19 @@ function downloadPDF() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     let y = 35;
-    doc.text('Periode :', 20, y);
+    doc.text('Periode:', 20, y);
     doc.text(formatMonthIndo(filter), 70, y);
     y += 7;
-    doc.text('Total Pemasukan :', 20, y);
+    doc.text('Total Pemasukan:', 20, y);
     doc.text(formatIDR(inc), 70, y);
     y += 7;
-    doc.text('Total Pengeluaran :', 20, y);
+    doc.text('Total Pengeluaran:', 20, y);
     doc.text(formatIDR(exp), 70, y);
     y += 7;
-    doc.text('Selisih :', 20, y);
+    doc.text('Selisih:', 20, y);
     doc.text(formatIDR(selisih), 70, y);
     y += 7;
-    doc.text('Total Saldo :', 20, y);
+    doc.text('Total Saldo Keseluruhan:', 20, y);
     doc.text(formatIDR(totalSaldo), 70, y);
     y += 10;
 
@@ -1003,7 +1076,7 @@ function saveSettings() {
 }
 
 function backupData() {
-    const data = { transactions, accounts, categories, budgets, debts, reminders, goals, settings };
+    const data = { transactions, accounts, categories, budgets, debts, reminders, goals, settings, recurringRules };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1027,6 +1100,7 @@ function restoreData(event) {
             reminders = data.reminders || [];
             goals = data.goals || [];
             settings = data.settings || { notification: false };
+            recurringRules = data.recurringRules || [];
             localStorage.setItem('finvault_tx', JSON.stringify(transactions));
             localStorage.setItem('finvault_accounts', JSON.stringify(accounts));
             localStorage.setItem('finvault_categories', JSON.stringify(categories));
@@ -1035,6 +1109,7 @@ function restoreData(event) {
             localStorage.setItem('finvault_reminders', JSON.stringify(reminders));
             localStorage.setItem('finvault_goals', JSON.stringify(goals));
             localStorage.setItem('finvault_settings', JSON.stringify(settings));
+            localStorage.setItem('finvault_recurring', JSON.stringify(recurringRules));
             migrateData();
             refreshAll();
             renderAccounts();
