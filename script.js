@@ -10,7 +10,7 @@ let mainChart = null, donutChart = null;
 let isSidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
 let searchTimeout;
 
-const defaultExpenseCategories = ['Makan & Minum', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Investasi', 'Tarik Tunai', 'Lainnya'];
+const defaultExpenseCategories = ['Makan & Minum', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan', 'Pendidikan', 'Investasi', 'Tarik Tunai', 'Top Up E-Wallet', 'Lainnya'];
 const defaultIncomeCategories = ['Gaji', 'Bonus', 'Freelance', 'Hadiah', 'Bunga Bank', 'Lainnya'];
 
 if (!categories.expense) {
@@ -20,7 +20,7 @@ if (!categories.expense) {
 
 const CATEGORY_ICONS = {
     'Makan & Minum':'fa-utensils','Transportasi':'fa-car','Belanja':'fa-bag-shopping','Tagihan':'fa-bolt','Hiburan':'fa-gamepad','Kesehatan':'fa-heart-pulse',
-    'Pendidikan':'fa-graduation-cap','Investasi':'fa-chart-line','Tarik Tunai':'fa-hand-holding-dollar','Lainnya':'fa-ellipsis',
+    'Pendidikan':'fa-graduation-cap','Investasi':'fa-chart-line','Tarik Tunai':'fa-hand-holding-dollar','Top Up E-Wallet':'fa-wallet','Lainnya':'fa-ellipsis',
     'Gaji':'fa-money-bill-wave','Bonus':'fa-certificate','Freelance':'fa-laptop-code','Hadiah':'fa-gift','Bunga Bank':'fa-building-columns'
 };
 
@@ -263,13 +263,16 @@ function deleteCategory(type, name) {
 }
 
 function populateAccountSelects() {
-    const selects = ['f-account', 'f-to-account', 'tx-account-filter'];
+    const selects = ['f-account', 'f-to-account', 'tx-account-filter', 'goal-account'];
     selects.forEach(id => {
         const select = document.getElementById(id);
         if (!select) return;
         select.innerHTML = '';
         if (id === 'tx-account-filter') {
             select.innerHTML = '<option value="all">Semua Akun</option>';
+        }
+        if (id === 'goal-account') {
+            select.innerHTML = '<option value="">Pilih Akun</option>';
         }
         accounts.forEach(acc => {
             const option = document.createElement('option');
@@ -768,6 +771,7 @@ function renderGoals() {
         <div class="glass bg-white/40 dark:bg-dark-surface/40 p-4 rounded-2xl border border-brand-200/30 dark:border-dark-border/50 hover:shadow-md transition-shadow">
             <div class="flex justify-between items-start">
                 <h4 class="font-bold text-sm md:text-base text-brand-700 dark:text-brand-300">${g.name}</h4>
+                <button onclick="editGoal(${g.id})" class="text-brand-400 hover:text-brand-500 mr-1"><i class="fa-regular fa-pen-to-square text-xs"></i></button>
                 <button onclick="deleteGoal(${g.id})" class="text-brand-400 hover:text-rose-500"><i class="fa-solid fa-trash-can text-xs"></i></button>
             </div>
             <div class="mt-2">
@@ -788,22 +792,72 @@ function renderGoals() {
 function openGoalModal(goal = null) {
     document.getElementById('goal-modal').classList.remove('hidden');
     document.getElementById('goal-modal').classList.add('flex');
+    populateAccountSelects();
     if (goal) {
+        document.getElementById('goal-modal-title').innerText = 'Edit Target';
         document.getElementById('goal-id').value = goal.id;
         document.getElementById('goal-name').value = goal.name;
         document.getElementById('goal-target').value = goal.target;
         document.getElementById('goal-current').value = goal.current;
         document.getElementById('goal-deadline').value = goal.deadline || '';
+        document.getElementById('goal-account').value = '';
+        document.getElementById('goal-add-amount').value = '';
     } else {
+        document.getElementById('goal-modal-title').innerText = 'Tambah Target';
         document.getElementById('goal-id').value = '';
         document.getElementById('goal-name').value = '';
         document.getElementById('goal-target').value = '';
         document.getElementById('goal-current').value = '0';
         document.getElementById('goal-deadline').value = '';
+        document.getElementById('goal-account').value = '';
+        document.getElementById('goal-add-amount').value = '';
     }
 }
 
-function closeGoalModal() { document.getElementById('goal-modal').classList.add('hidden'); document.getElementById('goal-modal').classList.remove('flex'); }
+function closeGoalModal() {
+    document.getElementById('goal-modal').classList.add('hidden');
+    document.getElementById('goal-modal').classList.remove('flex');
+}
+
+function addFundsToGoal() {
+    const accountId = document.getElementById('goal-account').value;
+    const amount = parseFloat(document.getElementById('goal-add-amount').value);
+    const goalCurrent = parseFloat(document.getElementById('goal-current').value) || 0;
+    
+    if (!accountId) {
+        alert('Pilih akun terlebih dahulu');
+        return;
+    }
+    if (!amount || amount <= 0) {
+        alert('Masukkan jumlah yang valid');
+        return;
+    }
+    
+    const account = accounts.find(a => a.id == accountId);
+    const accountBalance = getAccountBalance(accountId);
+    
+    if (accountBalance < amount) {
+        alert(`Saldo ${account.name} tidak mencukupi (${formatIDR(accountBalance)})`);
+        return;
+    }
+    
+    const expenseTx = {
+        id: Date.now(),
+        type: 'expense',
+        amount: amount,
+        date: new Date().toISOString().split('T')[0],
+        account: accountId,
+        category: 'Lainnya',
+        desc: `Alokasi dana untuk target`
+    };
+    
+    transactions.unshift(expenseTx);
+    localStorage.setItem('finvault_tx', JSON.stringify(transactions));
+    
+    document.getElementById('goal-current').value = goalCurrent + amount;
+    
+    showToast(`Rp ${amount.toLocaleString()} ditambahkan ke target`);
+}
 
 function saveGoal(e) {
     e.preventDefault();
@@ -813,6 +867,7 @@ function saveGoal(e) {
     const current = parseFloat(document.getElementById('goal-current').value) || 0;
     const deadline = document.getElementById('goal-deadline').value || null;
     const goalData = { name, target, current, deadline };
+    
     if (id) {
         const idx = goals.findIndex(g => g.id == id);
         if (idx !== -1) goals[idx] = { ...goals[idx], ...goalData };
@@ -822,7 +877,13 @@ function saveGoal(e) {
     localStorage.setItem('finvault_goals', JSON.stringify(goals));
     closeGoalModal();
     renderGoals();
+    refreshAll();
     showToast('Target disimpan');
+}
+
+function editGoal(id) {
+    const goal = goals.find(g => g.id == id);
+    if (goal) openGoalModal(goal);
 }
 
 function deleteGoal(id) {
@@ -878,19 +939,19 @@ function downloadPDF() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     let y = 35;
-    doc.text('Periode:', 20, y);
+    doc.text('Periode :', 20, y);
     doc.text(formatMonthIndo(filter), 70, y);
     y += 7;
-    doc.text('Total Pemasukan:', 20, y);
+    doc.text('Total Pemasukan :', 20, y);
     doc.text(formatIDR(inc), 70, y);
     y += 7;
-    doc.text('Total Pengeluaran:', 20, y);
+    doc.text('Total Pengeluaran :', 20, y);
     doc.text(formatIDR(exp), 70, y);
     y += 7;
-    doc.text('Selisih:', 20, y);
+    doc.text('Selisih :', 20, y);
     doc.text(formatIDR(selisih), 70, y);
     y += 7;
-    doc.text('Total Saldo Keseluruhan:', 20, y);
+    doc.text('Total Saldo :', 20, y);
     doc.text(formatIDR(totalSaldo), 70, y);
     y += 10;
 
