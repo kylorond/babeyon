@@ -56,7 +56,7 @@ function showToast(message, duration = 3000) {
 function updateGreeting() {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'pagi' : hour < 15 ? 'siang' : hour < 18 ? 'sore' : 'malam';
-    document.getElementById('greeting').innerText = `Hai, selamat ${greeting} Babey`;
+    document.getElementById('greeting').innerText = `Hai, selamat ${greeting} Dede`;
 }
 
 function toggleTheme() {
