@@ -90,6 +90,10 @@
                 <i class="fa-solid fa-rotate w-6 text-lg"></i><span class="nav-text">Restore</span>
                 <input type="file" id="restore-file" accept=".json" class="hidden" onchange="restoreData(event)">
             </button>
+            <p class="sidebar-user-text px-4 text-[10px] font-bold text-brand-300 uppercase tracking-widest mt-8 mb-4">bantuan</p>
+            <button onclick="openGuideModal()" class="nav-item w-full flex items-center px-4 py-3 rounded-2xl text-brand-500 hover:bg-brand-100 dark:hover:bg-dark-border/50 font-medium transition-all gap-4">
+                <i class="fa-regular fa-circle-question w-6 text-lg"></i><span class="nav-text">Panduan</span>
+            </button>
         </nav>
 
         <div class="p-5 sidebar-balance">
@@ -121,6 +125,9 @@
                 <button onclick="toggleTheme()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center glass border border-slate-200/50 dark:border-dark-border text-slate-500 hover:border-brand-400 transition-all">
                     <i class="fa-solid fa-sun text-amber-500 hidden dark:block"></i>
                     <i class="fa-solid fa-moon block dark:hidden"></i>
+                </button>
+                <button onclick="openGuideModal()" class="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center glass border border-slate-200/50 dark:border-dark-border text-brand-500 hover:border-brand-400 transition-all">
+                    <i class="fa-regular fa-circle-question"></i>
                 </button>
                 <div onclick="document.getElementById('date-filter').showPicker()" class="relative h-9 sm:h-10 w-9 sm:w-36 glass border border-slate-200/50 dark:border-dark-border rounded-full flex items-center justify-center sm:justify-start gap-1 cursor-pointer hover:bg-slate-100 dark:hover:bg-dark-border/50 transition-all">
                     <i class="fa-regular fa-calendar text-slate-400 text-sm ml-0 sm:ml-3"></i>
@@ -380,6 +387,59 @@
             </footer>
         </div>
     </main>
+</div>
+
+<div id="guide-modal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-md" onclick="closeGuideModal()"></div>
+    <div class="glass w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-3xl shadow-2xl relative z-10 border border-white/20 dark:border-dark-border">
+        <div class="p-4 md:p-6 border-b border-brand-200/30 dark:border-dark-border flex justify-between items-center sticky top-0 bg-white/80 dark:bg-dark-surface/80 backdrop-blur-md z-10">
+            <h3 class="text-lg md:text-xl font-extrabold text-brand-700 dark:text-brand-300">Panduan Penggunaan Aplikasi</h3>
+            <button onclick="closeGuideModal()" class="text-brand-400 hover:text-rose-500 transition-all"><i class="fa-solid fa-circle-xmark text-xl md:text-2xl"></i></button>
+        </div>
+        <div class="p-4 md:p-6 space-y-6 text-sm text-brand-600 dark:text-brand-300">
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 1: Membuat Akun</h4>
+                <p>Buka menu Akun di sidebar. Klik tombol Tambah. Isi nama akun (misal: Kas, Bank BCA, Dana) dan saldo awal. Pilih mata uang. Klik Simpan. Ulangi untuk semua akun yang Anda miliki.</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 2: Mengatur Kategori</h4>
+                <p>Buka menu Kategori. Anda dapat menambah atau menghapus kategori pemasukan dan pengeluaran sesuai kebutuhan. Kategori ini akan muncul saat mencatat transaksi.</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 3: Mencatat Transaksi</h4>
+                <p>Klik tombol Transaksi di pojok kanan atas. Pilih jenis (pemasukan/pengeluaran/transfer). Isi jumlah, tanggal, akun, kategori, dan deskripsi. Centang "Ulangi transaksi" jika ingin membuat transaksi berulang harian/mingguan/bulanan. Klik Simpan. Transaksi akan langsung tercatat dan memengaruhi saldo akun.</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 4: Memantau Dashboard</h4>
+                <p>Halaman Dashboard menampilkan ringkasan pemasukan, pengeluaran, selisih, dan jumlah transaksi bulan ini. Grafik arus kas 30 hari dan distribusi pengeluaran membantu analisis. Anda juga bisa melihat transaksi terbaru dan progres anggaran.</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 5: Mengatur Anggaran</h4>
+                <p>Di menu Anggaran, tentukan batas pengeluaran per kategori per bulan. Isi nominal target, lalu klik Perbarui Target. Dashboard akan menampilkan persentase penggunaan anggaran.</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 6: Mengelola Utang/Piutang</h4>
+                <p>Buka menu Utang/Piutang. Catat pinjaman yang Anda beri (piutang) atau terima (utang). Anda dapat menandai lunas dan melihat jatuh tempo.</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 7: Membuat Pengingat</h4>
+                <p>Di menu Pengingat, tambahkan pengingat untuk tagihan atau cicilan beserta jumlah dan tanggal jatuh tempo. Aktifkan notifikasi browser di menu Preferensi agar mendapat pemberitahuan.</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 8: Menetapkan Target Keuangan</h4>
+                <p>Menu Target membantu Anda merencanakan tabungan untuk tujuan tertentu. Masukkan nama target, nominal target, dan jumlah yang sudah terkumpul. Anda bisa menambah dana dari akun mana pun.</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 9: Mengekspor Laporan</h4>
+                <p>Gunakan menu Ekspor CSV atau Cetak PDF di sidebar untuk mengunduh laporan keuangan periode tertentu (filter bulan di pojok kanan atas).</p>
+            </div>
+            <div>
+                <h4 class="font-bold text-base mb-2 text-brand-500">Langkah 10: Backup dan Restore</h4>
+                <p>Menu Backup menyimpan seluruh data ke file JSON. Restore digunakan untuk mengembalikan data dari file backup. Lakukan backup secara berkala.</p>
+            </div>
+            <p class="text-xs text-brand-400 border-t border-brand-200/30 pt-4 mt-4">Aplikasi dibuat oleh Bayon. Semua data disimpan di browser Anda.</p>
+        </div>
+    </div>
 </div>
 
 <div id="tx-modal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
